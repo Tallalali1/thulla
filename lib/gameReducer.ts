@@ -3,6 +3,8 @@ import {
   GameAction,
   CurrentRound,
   Round,
+  Card,
+  Suit,
 } from "./types";
 import {
   calculateCardDistribution,
@@ -20,6 +22,9 @@ export const initialState: GameState = {
   roundNumber: 0,
   isFirstRound: true,
   pendingAceOfSpadesSelection: false,
+  usedCards: [],
+  myPlayerId: null,
+  pendingHandInput: false,
 };
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
@@ -33,6 +38,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         isSafe: false,
         isLoser: false,
         finishedRound: null,
+        hand: [] as Card[],
+        missingSuits: [] as Suit[],
       }));
 
       const currentRound: CurrentRound = {
@@ -54,6 +61,28 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         roundNumber: 1,
         isFirstRound: true,
         pendingAceOfSpadesSelection: false,
+        usedCards: [],
+        myPlayerId: null,
+        pendingHandInput: true,
+      };
+    }
+
+    case "SET_MY_PLAYER": {
+      return {
+        ...state,
+        myPlayerId: action.playerId,
+      };
+    }
+
+    case "SET_MY_HAND": {
+      if (!state.myPlayerId) return state;
+      const newPlayers = state.players.map((p) =>
+        p.id === state.myPlayerId ? { ...p, hand: action.cards } : p
+      );
+      return {
+        ...state,
+        players: newPlayers,
+        pendingHandInput: false,
       };
     }
 
@@ -73,24 +102,38 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!state.currentRound.ledSuit) return state;
 
       const isOffSuit = action.card.suit !== state.currentRound.ledSuit;
+      // First round: no thulla possible, off-suit cards just get discarded
+      const triggersThulla = isOffSuit && !state.isFirstRound;
       const newPlay = {
         playerId: action.playerId,
         card: action.card,
-        isOffSuit,
+        isOffSuit: triggersThulla,
       };
 
       const newPlays = [...state.currentRound.plays, newPlay];
-      const isThulla = state.currentRound.isThulla || isOffSuit;
+      const isThulla = state.currentRound.isThulla || triggersThulla;
 
-      // Update player card count
+      // Update player card count, hand, and missing suits
+      const ledSuitForMissing = state.currentRound.ledSuit;
       const newPlayers = state.players.map((p) => {
         if (p.id === action.playerId) {
           const newCount = p.cardCount - 1;
+          // Remove card from hand if tracked
+          const newHand = p.hand.filter(
+            (c) => !(c.suit === action.card.suit && c.rank === action.card.rank)
+          );
+          // Track missing suit: if off-suit and not first round, player doesn't have the led suit
+          const newMissingSuits =
+            triggersThulla && !p.missingSuits.includes(ledSuitForMissing)
+              ? [...p.missingSuits, ledSuitForMissing]
+              : p.missingSuits;
           return {
             ...p,
             cardCount: newCount,
             isSafe: newCount === 0,
             finishedRound: newCount === 0 ? state.roundNumber : p.finishedRound,
+            hand: newHand,
+            missingSuits: newMissingSuits,
           };
         }
         return p;
@@ -98,7 +141,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       // If thulla, round is complete immediately
       // Otherwise, check if all active players have played
-      const activePlayers = newPlayers.filter((p) => !p.isSafe || newPlays.some((play) => play.playerId === p.id));
       const activePlayerCount = state.players.filter((p) => !p.isSafe).length;
       const isComplete = isThulla || newPlays.length >= activePlayerCount;
 
@@ -134,6 +176,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (wasThulla) {
         // Winner picks up all cards played in this round
         const cardsToPickUp = plays.length;
+        const pickedUpCards = plays.map((p) => p.card);
         newPlayers = newPlayers.map((p) => {
           if (p.id === winnerId) {
             return {
@@ -141,6 +184,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
               cardCount: p.cardCount + cardsToPickUp,
               isSafe: false,
               finishedRound: null,
+              hand: [...p.hand, ...pickedUpCards],
             };
           }
           return p;
@@ -160,6 +204,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const newRounds = [...state.rounds, completedRound];
       const newRoundNumber = state.roundNumber + 1;
 
+      // Track used cards: only cards from clean rounds are permanently out
+      // Thulla'd cards go back to a player's hand
+      let newUsedCards = [...state.usedCards];
+      if (!wasThulla) {
+        newUsedCards = [...newUsedCards, ...plays.map((p) => p.card)];
+      }
+
       // Check for game over
       const activePlayers = newPlayers.filter((p) => !p.isSafe);
       if (activePlayers.length <= 1) {
@@ -175,6 +226,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           rounds: newRounds,
           currentRound: null,
           roundNumber: newRoundNumber,
+          usedCards: newUsedCards,
         };
       }
 
@@ -188,6 +240,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           roundNumber: newRoundNumber,
           isFirstRound: false,
           pendingAceOfSpadesSelection: true,
+          usedCards: newUsedCards,
         };
       }
 
@@ -209,6 +262,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         currentRound: nextRound,
         currentLeadPlayerIndex: winnerIndex,
         roundNumber: newRoundNumber,
+        usedCards: newUsedCards,
       };
     }
 
@@ -239,14 +293,26 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const lastPlay = state.currentRound.plays[state.currentRound.plays.length - 1];
       const newPlays = state.currentRound.plays.slice(0, -1);
 
-      // Restore player card count
+      // Restore player card count and hand
+      const undoLedSuit = state.currentRound.ledSuit;
       const newPlayers = state.players.map((p) => {
         if (p.id === lastPlay.playerId) {
+          // Restore card to hand if this player had tracked cards
+          const restoredHand = (p.hand.length > 0 || p.id === state.myPlayerId)
+            ? [...p.hand, lastPlay.card]
+            : p.hand;
+          // Remove missing suit if the undone play was the one that caused it
+          const restoredMissingSuits =
+            lastPlay.isOffSuit && undoLedSuit
+              ? p.missingSuits.filter((s) => s !== undoLedSuit)
+              : p.missingSuits;
           return {
             ...p,
             cardCount: p.cardCount + 1,
             isSafe: false,
             finishedRound: p.finishedRound === state.roundNumber ? null : p.finishedRound,
+            hand: restoredHand,
+            missingSuits: restoredMissingSuits,
           };
         }
         return p;

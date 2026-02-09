@@ -1,18 +1,39 @@
 "use client";
 
+import { useState } from "react";
 import { useGame } from "@/lib/GameContext";
 import { PlayerList } from "./PlayerList";
 import { RoundTracker } from "./RoundTracker";
 import { Button } from "@/components/shared/Button";
+import { SuitIcon } from "@/components/shared/SuitIcon";
+import { HandInputScreen } from "@/components/setup/HandInputScreen";
+import { SUITS, RANK_VALUES } from "@/lib/types";
 
 export function GameScreen() {
   const { state, dispatch } = useGame();
-  const { currentRound, players, roundNumber, pendingAceOfSpadesSelection } = state;
+  const { currentRound, players, roundNumber, pendingAceOfSpadesSelection, pendingHandInput, myPlayerId } = state;
+  const [showHand, setShowHand] = useState(true);
+
+  // Show hand input screen if pending
+  if (pendingHandInput) {
+    return <HandInputScreen />;
+  }
 
   const currentTurnPlayerId = currentRound
     ? players[currentRound.currentTurnPlayerIndex]?.id ?? null
     : null;
   const leadPlayerId = currentRound?.leadPlayerId ?? null;
+
+  const myPlayer = players.find((p) => p.id === myPlayerId);
+  const myHand = myPlayer?.hand ?? [];
+
+  // Group hand by suit and sort by rank
+  const handBySuit = SUITS.map((suit) => ({
+    suit,
+    cards: myHand
+      .filter((c) => c.suit === suit)
+      .sort((a, b) => RANK_VALUES[b.rank] - RANK_VALUES[a.rank]),
+  })).filter((g) => g.cards.length > 0);
 
   return (
     <div className="min-h-dvh flex flex-col px-4 py-4 max-w-md mx-auto">
@@ -37,7 +58,36 @@ export function GameScreen() {
         players={players}
         currentTurnPlayerId={currentTurnPlayerId}
         leadPlayerId={leadPlayerId}
+        myPlayerId={myPlayerId}
       />
+
+      {/* My Hand section */}
+      {myHand.length > 0 && (
+        <div className="mt-3">
+          <button
+            onClick={() => setShowHand(!showHand)}
+            className="flex items-center gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2"
+          >
+            <span>{showHand ? "▼" : "▶"}</span>
+            My Hand ({myHand.length})
+          </button>
+          {showHand && (
+            <div className="flex flex-wrap gap-1.5">
+              {handBySuit.map(({ suit, cards }) =>
+                cards.map((card) => (
+                  <span
+                    key={`${card.suit}-${card.rank}`}
+                    className="inline-flex items-center gap-0.5 px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-sm font-medium"
+                  >
+                    <span className="font-bold">{card.rank}</span>
+                    <SuitIcon suit={suit} size="sm" />
+                  </span>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Ace of Spades selection */}
       {pendingAceOfSpadesSelection && (

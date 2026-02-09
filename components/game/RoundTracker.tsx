@@ -8,10 +8,17 @@ import { Button } from "@/components/shared/Button";
 import { SuitIcon } from "@/components/shared/SuitIcon";
 import { findRoundWinner } from "@/lib/utils";
 import { Card } from "@/lib/types";
+import { useMemo } from "react";
 
 export function RoundTracker() {
   const { state, dispatch } = useGame();
-  const { currentRound, players, isFirstRound } = state;
+  const { currentRound, players, isFirstRound, usedCards = [] } = state;
+
+  // All unavailable cards: permanently used + currently played in this round
+  const disabledCards = useMemo(() => {
+    const currentPlays = currentRound?.plays.map((p) => p.card) ?? [];
+    return [...usedCards, ...currentPlays];
+  }, [usedCards, currentRound?.plays]);
 
   if (!currentRound) return null;
 
@@ -71,6 +78,7 @@ export function RoundTracker() {
               })
             }
             preselectedSuit={currentRound.ledSuit}
+            disabledCards={disabledCards}
           />
         </div>
       </div>

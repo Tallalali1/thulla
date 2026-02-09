@@ -24,6 +24,8 @@ export interface Player {
   isSafe: boolean;
   isLoser: boolean;
   finishedRound: number | null;
+  hand: Card[];          // known cards in hand (full for "me", partial for others)
+  missingSuits: Suit[];  // suits we know this player doesn't have
 }
 
 export interface PlayedCard {
@@ -62,6 +64,9 @@ export interface GameState {
   roundNumber: number;
   isFirstRound: boolean;
   pendingAceOfSpadesSelection: boolean;
+  usedCards: Card[]; // cards permanently out of the game (from clean rounds)
+  myPlayerId: string | null;    // which player is the app user
+  pendingHandInput: boolean;    // show hand input screen after setup
 }
 
 export type GameAction =
@@ -71,4 +76,6 @@ export type GameAction =
   | { type: "FINALIZE_ROUND" }
   | { type: "UNDO_LAST_PLAY" }
   | { type: "SELECT_ACE_OF_SPADES_HOLDER"; playerId: string }
+  | { type: "SET_MY_PLAYER"; playerId: string }
+  | { type: "SET_MY_HAND"; cards: Card[] }
   | { type: "NEW_GAME" };
