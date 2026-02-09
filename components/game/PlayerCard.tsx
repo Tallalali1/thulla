@@ -8,15 +8,21 @@ interface PlayerCardProps {
   isCurrentTurn: boolean;
   isLead: boolean;
   isMe?: boolean;
+  isSelected?: boolean;
+  onTap?: () => void;
 }
 
-export function PlayerCard({ player, isCurrentTurn, isLead, isMe }: PlayerCardProps) {
+export function PlayerCard({ player, isCurrentTurn, isLead, isMe, isSelected, onTap }: PlayerCardProps) {
   const missingSuits = player.missingSuits ?? [];
+  const knownCards = player.hand?.length ?? 0;
 
   return (
     <div
-      className={`flex-shrink-0 px-3 py-2 rounded-xl border-2 transition-all min-w-[100px] ${
-        player.isSafe
+      onClick={onTap}
+      className={`flex-shrink-0 px-3 py-2 rounded-xl border-2 transition-all min-w-[100px] cursor-pointer active:scale-95 ${
+        isSelected
+          ? "border-blue-500 bg-blue-500/10 dark:bg-blue-500/10"
+          : player.isSafe
           ? "border-green-500/50 bg-green-500/10 opacity-60"
           : isCurrentTurn
           ? "border-zinc-900 dark:border-white bg-zinc-100 dark:bg-zinc-800 scale-105"
@@ -32,7 +38,14 @@ export function PlayerCard({ player, isCurrentTurn, isLead, isMe }: PlayerCardPr
         {player.isSafe ? (
           <span className="text-green-600 dark:text-green-400 text-xs font-medium">SAFE</span>
         ) : (
-          <span className="text-lg font-bold">{player.cardCount}</span>
+          <div>
+            <span className="text-lg font-bold">{player.cardCount}</span>
+            {knownCards > 0 && !isMe && (
+              <span className="text-[10px] text-blue-500 font-medium ml-1">
+                ({knownCards} known)
+              </span>
+            )}
+          </div>
         )}
       </div>
       {/* Missing suits */}

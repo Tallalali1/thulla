@@ -44,8 +44,9 @@ export function HandInputScreen() {
   }
 
   // Step 2: Input your cards
-  const myPlayer = players.find((p) => p.id === myPlayerId);
-  const expectedCount = myPlayer?.cardCount ?? 0;
+  const playerCount = players.length;
+  const minCards = Math.floor(52 / playerCount);
+  const maxCards = Math.ceil(52 / playerCount);
 
   const isSelected = (suit: Suit, rank: Rank) =>
     selectedCards.some((c) => c.suit === suit && c.rank === rank);
@@ -58,6 +59,8 @@ export function HandInputScreen() {
     }
   };
 
+  const isValidCount = selectedCards.length >= minCards && selectedCards.length <= maxCards;
+
   return (
     <div className="min-h-dvh flex flex-col px-4 py-6 max-w-md mx-auto">
       <div className="text-center mb-4">
@@ -66,11 +69,14 @@ export function HandInputScreen() {
           Tap to select the cards in your hand
         </p>
         <p className={`text-sm font-medium mt-2 ${
-          selectedCards.length === expectedCount
+          isValidCount
             ? "text-green-600 dark:text-green-400"
             : "text-zinc-500 dark:text-zinc-400"
         }`}>
-          {selectedCards.length} / {expectedCount} selected
+          {selectedCards.length} selected
+          {minCards === maxCards
+            ? ` (need ${minCards})`
+            : ` (need ${minCards} or ${maxCards})`}
         </p>
       </div>
 
@@ -106,12 +112,12 @@ export function HandInputScreen() {
         <Button
           size="lg"
           className="w-full"
-          disabled={selectedCards.length !== expectedCount}
+          disabled={!isValidCount}
           onClick={() => dispatch({ type: "SET_MY_HAND", cards: selectedCards })}
         >
-          {selectedCards.length === expectedCount
-            ? "Confirm Cards"
-            : `Select ${expectedCount - selectedCards.length} more`}
+          {isValidCount
+            ? `Confirm ${selectedCards.length} Cards`
+            : `Select ${minCards}${minCards !== maxCards ? ` or ${maxCards}` : ""} cards`}
         </Button>
       </div>
     </div>

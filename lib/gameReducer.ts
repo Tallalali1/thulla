@@ -76,9 +76,25 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case "SET_MY_HAND": {
       if (!state.myPlayerId) return state;
-      const newPlayers = state.players.map((p) =>
-        p.id === state.myPlayerId ? { ...p, hand: action.cards } : p
-      );
+      const actualCount = action.cards.length;
+      const myPlayer = state.players.find((p) => p.id === state.myPlayerId);
+      const prevCount = myPlayer?.cardCount ?? actualCount;
+      // Adjust card count difference across other players if needed
+      const diff = actualCount - prevCount;
+      const otherPlayers = state.players.filter((p) => p.id !== state.myPlayerId);
+      // Distribute the opposite diff across other players (some had wrong extra/fewer cards)
+      let remaining = -diff;
+      const newPlayers = state.players.map((p) => {
+        if (p.id === state.myPlayerId) {
+          return { ...p, hand: action.cards, cardCount: actualCount };
+        }
+        if (remaining !== 0) {
+          const adjust = remaining > 0 ? 1 : -1;
+          remaining -= adjust;
+          return { ...p, cardCount: p.cardCount + adjust };
+        }
+        return p;
+      });
       return {
         ...state,
         players: newPlayers,
